@@ -1,27 +1,44 @@
-# ROB - Refresh Only Builds
+# **gobuildproxy**
 
-ROB is a proxy web server that rebuilds your application **only when a request comes in** after code 
-changes, instead of triggering a rebuild on every file change. This approach reduces unnecessary builds and avoids refreshing multiple times
-for your app to be ready.
+A build proxy that tracks changes and rebuilds if needed when a new request comes in. Build errors are captured and rendered in a more readable format right in your browser.
+Screenshots are available below.
 
-## How It Works
-1. **Starts a Reverse Proxy**: Forwards incoming requests to the actual application.
-2. **Get notified of code changes**: Use [air](https://github.com/air-verse/air) or any other similar tool to call `rob --notify` when files change.
-3. **Triggers a Rebuild**: If code has changed since the last request, it executes the specified build command on the next request, not on every change.
-4. **Restarts the Application**: If the build succeeds, the app is restarted before forwarding the request.
+- 🚀 **Faster development workflow** – No need to wait for unnecessary builds.
+- 🔋 **Saves CPU & battery** – Rebuilds only when required.
+- 🔄 **Ensures latest changes are applied** – Refresh once and get the newest version.
+- 🛠 **Build error reporting** – Go/Templ build errors directly in your browser.
 
-## Features
- * Save battery life rebuilding only when you are ready to test your change.
- * Be sure you are seeing the latest code changes with a single refresh.
- * No need to refresh multiple times waiting for your app to be ready.
- * See build errors right in your browser when you refresh after a change.
 
-<img width="1153" src="https://github.com/user-attachments/assets/f796c1a8-c0bf-47fc-8074-65cd9352ae39" />
+## **🚀 Installation**
+```sh
+go install github.com/tigrang/gobuildproxy@latest
+```
 
-### Limitations
- * Your `run` script is responsible for stopping and starting your app in the background.
+### **Available Flags**
+| Flag          | Default Value    | Description                                             |
+|---------------|------------------|---------------------------------------------------------|
+| `--path`      | `.`              | Path to the app.                                        |
+| `--run`       | `./run`          | Path to the app startup script.                         |
+| `--cmd`       | `./build`        | Command to execute for rebuilding the application.      |
+| `--proxybind` | `localhost:9000` | Address where gobuildproxy listens for requests.        |
+| `--proxy`     | `localhost:3000` | URL of the application to forward requests to.          |
+| `--timeout`   | `30`             | Time (seconds) to wait for the app to become available. |
+| `--templ`     |                  | Enable templ proxy and error reporting.                 |
 
-Sample run script:
+## **📝 Notes & Limitations**
+- Your `run` script is responsible for stopping and starting your app in the background.
+
+## **🛠 Usage**
+
+### Go app (no Templ)
+```sh
+gobuildproxy
+```
+
+##### **📌 Example Configuration**
+
+<details>
+<summary>run script</summary>
 
 ```sh
 #!/bin/sh
@@ -29,53 +46,57 @@ Sample run script:
 pkill myapp
 ./myapp &
 ```
+</details>
 
-Sample build script:
-
+<details>
+<summary>build script</summary>
+    
 ```sh
 #!/bin/sh
 
-set -e
-templ generate
 go build -o myapp .
 ```
+</details>
 
-Sample air config:
+### Go app with Templ
 
-```toml
-[build]
-  bin = ""
-  cmd = "rob --notify"
-  delay = 100
-  full_bin = "true"
-```
-
-## Installation
+gobuildproxy will start `templ generate --watch --proxy` to capture and render build errors.
+Make sure to set `TEMPL_DEV_MODE=true` env var when starting your app.
 
 ```sh
-go install github.com/tigrang/rob@latest
+gobuildproxy --templ
 ```
 
-## Usage
-Run ROB with the necessary flags:
+#### **📌 Example Configuration**
 
-```sh
-rob --proxy localhost:3000
+<details>
+<summary>run script</summary>
+
 ```
+#!/bin/sh
 
-### Available Flags
-| Flag            | Default Value            | Description                                             |
-|-----------------|--------------------------|---------------------------------------------------------|
-| `--notify`      | `false`                  | Notify the proxy to trigger a rebuild.                  |
-| `--bin`         | `./run`                  | Path to the app startup script.                         |
-| `--cmd`         | `./build`                | Command to execute for rebuilding the application.      |
-| `--proxybind`   | `localhost:9000`         | Address where ROB listens for requests.                 |
-| `--proxy`       | `localhost:3000`         | URL of the application to forward requests to.          |
-| `--notifyroute` | `/internal/build/notify` | Path used to notify ROB of changes.                     |
-| `--timeout`     | `30`                     | Time (seconds) to wait for the app to become available. |
-| `--path`        | ``                       | Path to app                                             |
+pkill myapp
+TEMPL_DEV_MODE=true ./myapp &
+```
+</details>
 
-## License
-[MIT License](LICENSE)
+<details>
+<summary>build script</summary>
+
+```
+#!/bin/sh
+
+go build -o myapp .
+```
+</details>
+
+## **📷 Screenshots**
+<img width="865" alt="Screenshot 2025-03-16 at 8 55 49 PM" src="https://github.com/user-attachments/assets/28699657-29e1-4d36-b7f2-9fd157f36abe" />
+
+<img width="865" alt="Screenshot 2025-03-16 at 7 35 48 PM" src="https://github.com/user-attachments/assets/36f413f0-a3f3-431b-8861-7c7c28263a71" />
+
+<img width="865" alt="Screenshot 2025-03-16 at 8 40 57 PM" src="https://github.com/user-attachments/assets/63fda4e5-735a-408a-94a0-dcece33cf17c" />
 
 
+## **📜 License**
+Licensed under the [MIT License](LICENSE).

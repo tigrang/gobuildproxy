@@ -5,15 +5,16 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 )
 
-func newLogger(debug bool) *slog.Logger {
+func newLogger(f flags) *slog.Logger {
 	opts := &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}
 
-	if debug {
+	if f.debug {
 		opts.Level = slog.LevelDebug
 	}
 
@@ -24,43 +25,39 @@ func newLogger(debug bool) *slog.Logger {
 func main() {
 	flags := parseFlags()
 
-	logger := newLogger(flags.debug)
+	logger := newLogger(flags)
 
-	app := newApp(flags.appPath, flags.proxyUrl, flags.run, flags.buildCmd)
+	app := newApp(flags.appPath, flags.proxyURL, flags.run, flags.buildCmd)
 
-	proxy, err := newProxy(
-		flags.proxyBind,
-		flags.notifyRoute,
-		time.Duration(flags.connectTimeout)*time.Second,
-		app,
-	)
+	proxyURL := flags.proxyURL
+	if flags.templ {
+		proxyURL = "localhost:7331" // TODO: add flag for this
+	}
 
+	timeout := time.Duration(flags.connectTimeout) * time.Second
+	proxy, err := newProxy(app, logger, timeout, proxyURL)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	if flags.notify && flags.watch {
-		log.Fatalln("--notify and --watch cannot be used at the same time")
-	}
-
-	if flags.notify {
-		if err := proxy.notify(); err != nil {
-			log.Fatalln(err)
-		}
-		return
-	}
-
 	logger.Info("Listening on " + flags.proxyBind)
-	logger.Info("Proxy to " + flags.proxyUrl)
+	logger.Info("Proxying requests to " + flags.proxyURL)
 
-	if flags.watch {
-		watcher, err := newWatcher(logger)
-		if err != nil {
-			log.Fatalln(err)
-		}
-
-		go notifyOnChange(proxy, watcher, logger)
+	if flags.templ {
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go watchTempl(proxy, flags.appPath, flags.proxyURL, &wg)
+		wg.Wait()
+		logger.Info("Templ proxy is ready")
 	}
+
+	logger.Info("Starting file watcher")
+	watcher, err := newWatcher(logger, flags.appPath)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	go notifyOnChange(proxy, watcher, logger)
 
 	if err := http.ListenAndServe(flags.proxyBind, proxy); err != nil {
 		log.Fatalln(err)

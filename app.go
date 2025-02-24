@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -34,9 +33,10 @@ func newApp(path string, url string, bin string, cmdPath string) *app {
 	}
 }
 
-// start execute app bin command and waits connectTimeout amount for it to be ready to accept connetions.
+// start execute app bin command and waits connectTimeout amount for it to be ready to accept connections.
 func (a *app) start(connectTimeout time.Duration) error {
 	cmd := exec.Command(a.bin)
+	cmd.Dir = a.path
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -51,17 +51,17 @@ func (a *app) start(connectTimeout time.Duration) error {
 	return nil
 }
 
-// rebuildIfDirty checks if build is out-of-date and runs build command then start the app.
+// rebuildIfDirty checks if build is out-of-date and runs build command then start.
 func (a *app) rebuildIfDirty(connectTimeout time.Duration) error {
+	if a.lastErr != nil {
+		return a.lastErr
+	}
+
 	if a.buildTime.Before(a.lastModified) {
 		if err := a.build(); err != nil {
 			fmt.Println(a.buildOutput)
 			return err
 		}
-	}
-
-	if a.lastErr != nil {
-		return a.lastErr
 	}
 
 	if a.startTime.Before(a.buildTime) {
@@ -102,24 +102,19 @@ func (a *app) build() error {
 
 // waitForConnection waits for connectTimeout amount of time for addr to be reachable.
 func waitForConnection(addr string, connectTimeout time.Duration) error {
-	slog.Info("Waiting for connection", "addr", addr, "connectTimeout", connectTimeout)
-
 	timer := time.NewTimer(connectTimeout)
 	defer timer.Stop()
 
-	ticker := time.NewTicker(time.Millisecond * 500)
-	defer ticker.Stop()
-
-	for t := time.Tick(time.Second); ; {
-		if _, err := net.Dial("tcp", addr); err == nil {
+	for {
+		if conn, err := net.DialTimeout("tcp", addr, connectTimeout); err == nil {
+			conn.Close()
 			return nil
 		}
-
 		select {
-		case <-t:
-			continue
 		case <-timer.C:
 			return errors.New("timed out waiting for connection")
+		default:
+			time.Sleep(500 * time.Millisecond)
 		}
 	}
 }

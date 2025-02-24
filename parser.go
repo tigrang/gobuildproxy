@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	templeRegx = regexp.MustCompile(`\[ error=[^:]+: (.+?\.templ) .+?: line (\d+), col (\d+) ]`)
+	templeRegx = regexp.MustCompile(`\[ error=[^:]+: (.+?\.templ) .+?:(?:(\d+):(\d+):)? .+?(?:line (\d+), col (\d+) )?]`)
 	goRegx     = regexp.MustCompile(`(.+?):(\d+):(\d+): (.+(?:\n\t.+)?)`)
 )
 
@@ -54,7 +54,14 @@ func parse(text string, path string) []outputLine {
 func extractCodeBlock(appPath string, output string) *codeblock {
 	templMatches := templeRegx.FindStringSubmatch(output)
 	if len(templMatches) > 0 {
-		return newCodeBlock(templMatches[1], templMatches[2], templMatches[3], false)
+		line := templMatches[2]
+		col := templMatches[3]
+		if line == "" {
+			line = templMatches[4]
+			col = templMatches[5]
+		}
+
+		return newCodeBlock(templMatches[1], line, col, false)
 	}
 
 	goMatches := goRegx.FindStringSubmatch(output)
@@ -71,7 +78,7 @@ func extractCodeBlock(appPath string, output string) *codeblock {
 }
 
 // newCodeBlock creates a new codeblock.
-func newCodeBlock(file string, line string, col string, isGoError bool) *codeblock {
+func newCodeBlock(file string, line string, col string, isColumn bool) *codeblock {
 	lineNum, err := strconv.Atoi(line)
 	if err != nil {
 		slog.Warn(err.Error())
@@ -84,10 +91,9 @@ func newCodeBlock(file string, line string, col string, isGoError bool) *codeblo
 		return nil
 	}
 
-	if isGoError {
+	if !isColumn {
 		// Go errors are actual column number, whereas templ is char index
-		// TODO: clean this up
-		colNum -= 1
+		colNum += 1
 	}
 
 	cb := &codeblock{

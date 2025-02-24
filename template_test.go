@@ -13,18 +13,18 @@ func TestEmphasize(t *testing.T) {
 	}{
 		"in bounds": {
 			input:    "foo",
-			col:      1,
+			col:      2,
 			expected: template.HTML(`<span style="position: relative;">f<span class="emphasize">o</span>o</span>`),
 		},
 		"out of bounds": {
 			input:    "foo",
 			col:      10,
-			expected: template.HTML(`<span style="position: relative;">foo<span class="emphasize"> </span></span>`),
+			expected: template.HTML(`<span style="position: relative;">fo<span class="emphasize">o</span></span>`),
 		},
 		"out of bounds with HTML": {
 			input:    "<span>foo</span>",
-			col:      100,
-			expected: template.HTML(`<span style="position: relative;">&lt;span&gt;foo&lt;/span&gt;<span class="emphasize"> </span></span>`),
+			col:      101,
+			expected: template.HTML(`<span style="position: relative;">&lt;span&gt;foo&lt;/span<span class="emphasize">&gt;</span></span>`),
 		},
 	}
 

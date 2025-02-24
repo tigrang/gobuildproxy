@@ -2,7 +2,6 @@ package main
 
 import (
 	_ "embed"
-	"fmt"
 	"html/template"
 	"regexp"
 	"strings"
@@ -58,16 +57,16 @@ func highlight(text string) template.HTML {
 
 // emphasize wraps given col with an emphasize style.
 func emphasize(col int, text string) template.HTML {
-	if col < 0 {
-		col = 0
+	if col < 1 {
+		col = 1
 	}
 
 	if col >= len(text) {
 		col = len(text)
-		text += " "
 	}
 
-	text = text[:col] + placeholder("emphasize", text[col:col+1]) + text[col+1:]
+	i := col - 1
+	text = text[:i] + placeholder("emphasize", text[i:i+1]) + text[i+1:]
 	return template.HTML(`<span style="position: relative;">` + styles(text) + `</span>`)
 }
 
@@ -134,5 +133,13 @@ func replace(text string, color string, re *regexp.Regexp) string {
 
 // placeholder wraps given text in {{style:style}}text{{/style}}.
 func placeholder(style, text string) string {
-	return fmt.Sprintf("%s%s:%s%s%s%s", openDelimiter, styleTag, style, closeDelimiter, text, closeTag)
+	var sb strings.Builder
+	sb.WriteString(openDelimiter)
+	sb.WriteString(styleTag)
+	sb.WriteString(":")
+	sb.WriteString(style)
+	sb.WriteString(closeDelimiter)
+	sb.WriteString(text)
+	sb.WriteString(closeTag)
+	return sb.String()
 }

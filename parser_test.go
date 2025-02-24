@@ -16,7 +16,7 @@ func TestParse(t *testing.T) {
 		},
 		"single line": {
 			output:   "my log output",
-			expected: []outputLine{outputLine{Content: "my log output"}},
+			expected: []outputLine{{Content: "my log output"}},
 		},
 		"single line with code reference": {
 			output: "testdata/sample.go:1:1: fake error",
@@ -25,7 +25,7 @@ func TestParse(t *testing.T) {
 					Content: "testdata/sample.go:1:1: fake error",
 					Codeblock: &codeblock{
 						LineNum:      1,
-						ColNum:       0,
+						ColNum:       1,
 						StartLineNum: 1,
 						Code: []codeLine{
 							{
