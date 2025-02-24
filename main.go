@@ -1,50 +1,68 @@
 package main
 
 import (
-	"flag"
+	"log"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 )
 
-func main() {
-	var notifyFlag bool
-	var runFlag string
-	var proxyUrlFlag string
-	var proxyBindFlag string
-	var notifyRouteFlag string
-	var buildCmdFlag string
-	var connectTimeoutFlag int
-	var appPathFlag string
-
-	flag.BoolVar(&notifyFlag, "notify", false, "notify proxy to trigger build")
-	flag.StringVar(&runFlag, "run", "./run", "path to script that will run app")
-	flag.StringVar(&proxyBindFlag, "proxybind", "localhost:9000", "the addr for error proxy to listen on")
-	flag.StringVar(&notifyRouteFlag, "notifyroute", "/internal/build/notify", "path to trigger builds (must be the same when --notify is used)")
-	flag.StringVar(&proxyUrlFlag, "proxy", "localhost:3000", "url app is listening on to forward requests")
-	flag.StringVar(&buildCmdFlag, "build", "./build", "path to script that will build app")
-	flag.IntVar(&connectTimeoutFlag, "timeout", 30, "the number of seconds to wait for proxy to be available")
-	flag.StringVar(&appPathFlag, "path", "", "Path to app")
-	flag.Parse()
-
-	app := newApp(appPathFlag, proxyUrlFlag, runFlag, buildCmdFlag)
-
-	h, err := newProxy(proxyBindFlag, notifyRouteFlag, time.Duration(connectTimeoutFlag)*time.Second, app)
-	if err != nil {
-		panic(err)
+func newLogger(debug bool) *slog.Logger {
+	opts := &slog.HandlerOptions{
+		Level: slog.LevelInfo,
 	}
 
-	if notifyFlag {
-		if err := h.notify(); err != nil {
-			panic(err)
+	if debug {
+		opts.Level = slog.LevelDebug
+	}
+
+	handler := slog.NewTextHandler(os.Stdout, opts)
+	return slog.New(handler)
+}
+
+func main() {
+	flags := parseFlags()
+
+	logger := newLogger(flags.debug)
+
+	app := newApp(flags.appPath, flags.proxyUrl, flags.run, flags.buildCmd)
+
+	proxy, err := newProxy(
+		flags.proxyBind,
+		flags.notifyRoute,
+		time.Duration(flags.connectTimeout)*time.Second,
+		app,
+	)
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	if flags.notify && flags.watch {
+		log.Fatalln("--notify and --watch cannot be used at the same time")
+	}
+
+	if flags.notify {
+		if err := proxy.notify(); err != nil {
+			log.Fatalln(err)
 		}
 		return
 	}
 
-	slog.Info("Listening on " + proxyBindFlag)
-	slog.Info("Proxy to " + proxyUrlFlag)
+	logger.Info("Listening on " + flags.proxyBind)
+	logger.Info("Proxy to " + flags.proxyUrl)
 
-	if err := http.ListenAndServe(proxyBindFlag, h); err != nil {
-		panic(err)
+	if flags.watch {
+		watcher, err := newWatcher(logger)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		go notifyOnChange(proxy, watcher, logger)
+	}
+
+	if err := http.ListenAndServe(flags.proxyBind, proxy); err != nil {
+		log.Fatalln(err)
 	}
 }
